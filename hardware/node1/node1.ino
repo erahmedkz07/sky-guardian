@@ -5,10 +5,9 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Adafruit_NeoPixel.h>
 
-const char* WIFI_SSID = "KNB";
-const char* WIFI_PASS = "haker#07";
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
 const char* API_DETECT = "http://192.168.101.7:3001/api/hardware/detect";
 const char* API_PING   = "http://192.168.101.7:3001/api/hardware/sensor-ping";
 const char* API_KEY    = "sg-hardware-key-2024";
@@ -17,25 +16,25 @@ const float SENSOR_LAT = 51.130f;
 const float SENSOR_LNG = 71.326f;
 
 #define RCWL_PIN    34
-#define LED_PIN     13
+#define PIR_PIN     26
+#define LED_GREEN   13
+#define LED_RED     12
 #define BUZZER_PIN  25
 #define BTN_ACK     36
 #define BTN_MODE    39
-#define LED_COUNT    8
-#define OLED_ADDR    0x3C
+#define OLED_ADDR   0x3C
 #define PING_INTERVAL  30000UL
 #define COOLDOWN_MS    10000UL
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
-Adafruit_NeoPixel ring(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 unsigned long lastPing   = 0;
 unsigned long lastDetect = 0;
 bool wifiOk = false;
 
-void setLEDs(uint32_t color) {
-  for (int i = 0; i < LED_COUNT; i++) ring.setPixelColor(i, color);
-  ring.show();
+void setLED(bool green, bool red) {
+  digitalWrite(LED_GREEN, green ? HIGH : LOW);
+  digitalWrite(LED_RED,   red   ? HIGH : LOW);
 }
 
 void beep(int times) {
@@ -73,7 +72,7 @@ void sendPing() {
   http.end();
 }
 
-void sendDetection() {
+void sendDetection(const char* source) {
   if (!wifiOk) return;
   HTTPClient http;
   http.begin(API_DETECT);
@@ -81,10 +80,15 @@ void sendDetection() {
   http.addHeader("x-api-key", API_KEY);
   StaticJsonDocument<256> doc;
   doc["sensorId"]   = SENSOR_ID;
-  doc["type"]       = "RADAR";
+  doc["callsign"]   = "UNKNOWN-DRONE";
+  doc["threat"]     = "high";
   doc["confidence"] = 85;
   doc["lat"]        = SENSOR_LAT;
   doc["lng"]        = SENSOR_LNG;
+  doc["altitude"]   = 0;
+  doc["speed"]      = 0;
+  doc["heading"]    = 0;
+  doc["notes"]      = source;
   String body; serializeJson(doc, body);
   int code = http.POST(body);
   Serial.printf("[DETECT] HTTP %d\n", code);
@@ -93,19 +97,20 @@ void sendDetection() {
 
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+  setCpuFrequencyMhz(80);
   Serial.begin(115200);
   delay(2000);
   Serial.println("\n=== SKY GUARDIAN NODE 1 ===");
 
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(RCWL_PIN,   INPUT);
+  pinMode(PIR_PIN,    INPUT);
+  pinMode(LED_GREEN,  OUTPUT);
+  pinMode(LED_RED,    OUTPUT);
   pinMode(BTN_ACK,    INPUT);
   pinMode(BTN_MODE,   INPUT);
   digitalWrite(BUZZER_PIN, LOW);
-
-  ring.begin();
-  ring.setBrightness(40);
-  setLEDs(ring.Color(0, 0, 50));
+  setLED(false, false);
 
   Wire.begin(21, 22);
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
@@ -115,9 +120,9 @@ void setup() {
     oledStatus("Booting...", "");
   }
 
-  setCpuFrequencyMhz(80);
+  WiFi.disconnect(true);
+  delay(300);
   WiFi.mode(WIFI_STA);
-  WiFi.setTxPower(WIFI_POWER_2dBm);
   delay(500);
 
   Serial.print("[WiFi] Connecting");
@@ -133,36 +138,53 @@ void setup() {
     wifiOk = true;
     Serial.printf("\n[WiFi] OK: %s\n", WiFi.localIP().toString().c_str());
     oledStatus("WiFi OK", WiFi.localIP().toString().c_str());
-    setLEDs(ring.Color(0, 50, 0));
+    setLED(true, false);
     beep(2);
     sendPing();
     lastPing = millis();
   } else {
     Serial.println("\n[WiFi] FAILED");
     oledStatus("WiFi FAIL", "Offline");
-    setLEDs(ring.Color(50, 0, 0));
+    setLED(false, true);
     beep(3);
   }
 }
 
 void loop() {
   unsigned long now = millis();
+
   if (wifiOk && now - lastPing >= PING_INTERVAL) {
     lastPing = now;
     sendPing();
   }
+
   if (digitalRead(RCWL_PIN) == HIGH) {
     if (now - lastDetect >= COOLDOWN_MS) {
       lastDetect = now;
       Serial.println("[RCWL] MOTION DETECTED!");
       oledStatus("!!! DRONE !!!", "RCWL triggered");
-      setLEDs(ring.Color(50, 0, 0));
+      setLED(false, true);
       beep(3);
-      sendDetection();
+      sendDetection("RCWL radar");
       delay(3000);
       oledStatus("Monitoring...", "SNS-001 online");
-      setLEDs(ring.Color(0, 50, 0));
+      setLED(true, false);
     }
   }
+
+  if (digitalRead(PIR_PIN) == HIGH) {
+    if (now - lastDetect >= COOLDOWN_MS) {
+      lastDetect = now;
+      Serial.println("[PIR] MOTION DETECTED!");
+      oledStatus("!!! DRONE !!!", "PIR triggered");
+      setLED(false, true);
+      beep(2);
+      sendDetection("PIR sensor");
+      delay(3000);
+      oledStatus("Monitoring...", "SNS-001 online");
+      setLED(true, false);
+    }
+  }
+
   delay(100);
 }
