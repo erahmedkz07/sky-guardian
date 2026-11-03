@@ -7,8 +7,8 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_NeoPixel.h>
 
-const char* WIFI_SSID = "KNB";
-const char* WIFI_PASS = "haker#07";
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
 const char* API_DETECT = "http://192.168.101.7:3001/api/hardware/detect";
 const char* API_PING   = "http://192.168.101.7:3001/api/hardware/sensor-ping";
 const char* API_KEY    = "sg-hardware-key-2024";
