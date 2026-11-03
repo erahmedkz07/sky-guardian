@@ -27,7 +27,7 @@ const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
 // ── Backend ─────────────────────────────────────────────────────
 const char* API_DETECT = "http://192.168.1.100:3001/api/hardware/detect";
 const char* API_PING   = "http://192.168.1.100:3001/api/hardware/sensor-ping";
-const char* API_KEY    = "sg-hardware-key-2024";
+const char* API_KEY    = "YOUR_HARDWARE_API_KEY";
 const char* SENSOR_ID  = "SNS-003";
 
 // Координаты камеры (фиксированные, нет GPS)

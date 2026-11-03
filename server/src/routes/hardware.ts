@@ -30,7 +30,7 @@ import "dotenv/config";
 
 const router = Router();
 
-const HARDWARE_KEY = process.env.HARDWARE_API_KEY ?? "sg-hardware-key-2024";
+const HARDWARE_KEY = process.env.HARDWARE_API_KEY;
 
 // ─── API key middleware ───────────────────────────────────────────
 function requireHardwareKey(req: any, res: any, next: any) {
